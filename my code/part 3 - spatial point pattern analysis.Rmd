@@ -10,6 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(here)
 library(sf)
+library(deldir)
 library(spatstat)
 library(maptools) 
 library(sp)
@@ -53,6 +54,7 @@ ggplot()+
   theme_minimal()
 ```
 
+## converting to spatial point oattern data
 
 ```{r}
 voles_sp <- as(voles,"Spatial") # Convert to object 'Spatial'
@@ -68,6 +70,85 @@ voles_full <- ppp(voles_ppp$x, voles_ppp$y, window = humboldt_win)
 
 plot(voles_full) # Illegal point (outside window) shows up as the plus sign
 ```
+
+## Density- making a kernel density plot
+
+```{r}
+voles_density <- density(voles_full, sigma = 0.03)
+
+plot(voles_density)
+```
+
+## it is clear there are hotspots in this data, how can we compare this to complete spatial randomness?
+
+```{r}
+#can view this in tmap, - rasterize it
+
+wgs84 = "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
+vole_raster <-raster(voles_density, crs = wgs84)
+
+tmap_mode("view")
+
+```
+
+```{r}
+tm_shape(vole_raster) +
+  tm_raster(midpoint = NA,
+            palette = "Reds",
+            legend.show = FALSE)
+```
+
+
+## Nearest Neighbor G-Function
+
+r: a sequence of distances (in the spatial units of the data) over which we’ll calculate the proportion of points with nearest neighbor within that range
+
+gfunction: This uses the envelope() function within which we run simulations for CSR, and calculate the G-function value at distances r for each simulation. So this will calculate the G-function for our actual data, and also for simulations of CSR if we had the same number of observations in the window but they were independent. The nsim = 100 here means there will be 100 simulations of CSR. The nrank = 2 means that the second highest and second lowest values from simulations are shown as the “hi” and “lo” value envelopes, with the “theo” being the “theoretical value of the summary function under CSR (Complete Spatial Randomness, a uniform Poisson point process) if the simulations were generated according to CSR.” So we’re really comparing our “observed” data to the “theoretical CSR” here, and those “hi” and “lo” envelope bounds give us an idea of spread for the simulations.
+
+
+```{r}
+r <- seq(0, 0.15, by = 0.005) # makes a sequence oveer which we will calculate G(r)
+
+gfunction <- envelope(voles_full, fun = Gest, r = r, nsim = 100, nrank =2)
+
+gfunction
+
+```
+
+#plots
+```{r}
+gfunction_long <- gfunction %>% 
+  as.data.frame() %>% 
+  pivot_longer(cols = obs:hi, names_to = "model", values_to = "g_val")
+
+ggplot(data = gfunction_long,
+       aes(x =r, y= g_val, group= model)) +
+  geom_line(aes(color = model))
+```
+
+This again confirms clustering - our data (model = obs) has a greater proportion of events with nearest neighbor at smaller distances compared to a theoretical CSR scenario (model = theo). But remember, the G-function only considers the single nearest neighbor.
+
+Let’s similarly look at the L-function (standardized K-function) which considers densities of observations within some distance R (expanding circles around each point) for comparison. This is using very similar code, but now the function is Lest for “L estimate”, which calculates the density of events within growing circles around each point. That is much more intensive than just the single nearest neighbor, so I run nsim = 10 here instead (you can do 100 or more again, you’ll just notice that creating the simulations takes longer).
+
+```{r}
+r2 <- seq(0, 0.5, by = 0.05)
+
+lfunction <- envelope(voles_full, fun = Lest, r = r2, nsim =10, rank =2, global = TRUE)
+
+```
+
+using pivot longer to rearrange the data set
+```{r}
+lfunction_long <- lfunction %>% 
+  as.data.frame() %>% 
+  pivot_longer(cols = obs:hi, names_to = "model", values_to = "k_val")
+
+ggplot(data= lfunction_long, aes(x= r, y=k_val, group = model)) +
+  geom_line(aes(color = model))
+```
+
+
+
 
 
 
