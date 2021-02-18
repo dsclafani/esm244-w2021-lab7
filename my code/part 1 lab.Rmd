@@ -63,4 +63,12 @@ str_to_upper(vec) # capitalizes everything
 str_to_title(vec) # rare case usuing
 ```
 
+Using these in combination:
+```{r}
+sw_combo <- starwars %>% 
+  filter(str_detect(name, pattern = "Darth")) %>% 
+  mutate(name = str_replace(name, pattern = "Darth", replacement = "LLAMA")) %>% 
+  mutate(name = str_to_lower(name))
+```
+
 
