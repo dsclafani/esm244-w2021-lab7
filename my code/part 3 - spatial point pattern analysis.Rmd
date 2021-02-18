@@ -1,0 +1,74 @@
+---
+title: "part 3 - spatial point pattern"
+author: "Danielle Sclafani"
+date: "2/17/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(here)
+library(sf)
+library(spatstat)
+library(maptools) 
+library(sp)
+library(raster)
+library(tmap)
+```
+
+This is an example of point pattern analysis with a density plot, and the G- & L- function (distance methods) to compare our observed points with simulated complete spatial randomness.
+
+```{r}
+#reading in the data
+voles <- read_sf(dsn = here("redtreevoledata"), layer = "ds033") %>% 
+  dplyr::select(COUNTY) %>% 
+  filter(COUNTY == "HUM") %>% 
+  st_transform(crs = 4326)
+
+plot(voles)
+```
+
+
+```{r}
+#get humboldt county outline
+humboldt <- read_sf(dsn = here("redtreevoledata"),
+                    layer = "california_county_shape_file") %>% 
+  filter(NAME == "Humboldt") %>% 
+  dplyr::select(NAME)
+
+# set the crs
+st_crs(humboldt) <- 4326
+
+# plot them together
+ggplot()+
+  geom_sf(data = humboldt,
+          color = "darkorchid",
+          fill = "darkorchid4",
+          size = 1) +
+  geom_sf(data = voles,
+          color = "orange",
+          alpha = 0.7,
+          size =2) +
+  theme_minimal()
+```
+
+
+```{r}
+voles_sp <- as(voles,"Spatial") # Convert to object 'Spatial'
+proj4string(voles_sp) <- "+proj=utm +zone=10 +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0" # Add UTM projection so that it's 2D (otherwise point pattern analysis invalid)
+voles_ppp <- as(voles_sp, "ppp") # Convert to spatial point pattern
+
+humboldt_sp <- as(humboldt, "Spatial") # Convert to object 'Spatial'
+proj4string(humboldt_sp) <- "+proj=utm +zone=10 +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0" # Add UTM projection
+humboldt_win <- as(humboldt_sp, "owin") # Convert to spatial point pattern
+
+# Combine as a point pattern object (points + window):
+voles_full <- ppp(voles_ppp$x, voles_ppp$y, window = humboldt_win)
+
+plot(voles_full) # Illegal point (outside window) shows up as the plus sign
+```
+
+
+
+

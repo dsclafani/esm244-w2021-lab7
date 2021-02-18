@@ -1,0 +1,66 @@
+---
+title: "Part 1 - stringr Functions"
+author: "Danielle Sclafani"
+date: "2/17/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+## Detecting string patterns with   `str_detect()`
+
+```{r}
+vec <- c(" A Unicorn    Fish", "add   cornmeal", "French FRIES", "acorn squash")
+vec
+
+str_detect(vec, pattern = "corn") # tells us if  "corn" is in those vector quantities
+```
+
+#### use strngr detect with the filter function
+```{r}
+walk_subset <- starwars %>% 
+  filter(str_detect(name, pattern = "walk")) #include only names that include lowercase "walk"
+
+# str_subset() does the same thing as filter and str_detect
+
+```
+
+### Replace a string pattern with something else
+```{r}
+# use str_replace to replace an existing string pattern with something else
+vec_bren <-str_replace(vec, pattern ="corn", replacement = "COOL")
+vec_bren
+```
+
+### replace the pattern "sky" with the pattern "TORNADO"
+```{r}
+sw_tornado <- starwars %>% 
+  mutate(name = str_replace(name, pattern = "Sky", replacement = "TORNADO"))
+```
+
+## USe `str_trim()` to remove excess leading and trailing white space
+```{r}
+str_trim(vec)
+
+str_squish(vec) # gets rid of excess white spaces in between words as well as leading and trailing white space
+
+```
+
+
+```{r}
+str_detect(vec, pattern = "Corn") # case sensitive
+```
+
+- `str_to_*()`
+```{r}
+str_to_lower(vec) # lowercases everything
+
+str_to_upper(vec) # capitalizes everything
+
+str_to_title(vec) # rare case usuing
+```
+
+

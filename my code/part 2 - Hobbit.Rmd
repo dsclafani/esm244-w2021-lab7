@@ -1,0 +1,161 @@
+---
+title: "Part 2 - Text Mining and Analysis - Hobbit"
+author: "Danielle Sclafani"
+date: "2/17/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(tidytext)
+library(textdata)
+library(pdftools)
+library(ggwordcloud)
+library(here)
+```
+
+
+```{r, cache=TRUE}
+#cache = TRUE makes it so this does not constantly load in everytime you try to knit
+#reading in the pdf Hobbit
+
+hobbit_text <- pdf_text(here("the-hobbit.pdf"))
+  
+
+hobbit_text_p34 <- hobbit_text[34]
+hobbit_text_p34
+```
+
+
+```{r}
+hobbit_tidy <-data.frame(hobbit_text) %>% # each row is now a different page # we want to find when there was a line break and give that its own row. split at the line break
+ mutate(text_full = str_split(hobbit_text, patter = "\\n")) %>% # the first \ tells R to consider anything after the first slash to be a character, so it knows that "\n" is a character not an operator
+  unnest(text_full) %>% # now each individual line in the text has its own line in the data
+  mutate(text_full = str_trim(text_full))
+
+```
+
+
+```{r}
+#we do not get to chapter 1 until like 126 of hobbit tidy
+
+hobbit_df <- hobbit_tidy %>%
+  slice(-(1:125)) %>% # remove lines from 1-125
+  mutate(chapter = case_when(
+    str_detect(text_full, patter = "Chapter") ~ text_full, # where chapter, but chapter in new chapter column
+               TRUE ~ NA_character_ #if not chapter put NA in new chapter column, need to explicitly say that the NA is a character
+  )) %>% 
+  fill(chapter) %>% # will fill all NA's in chapter column with the value that is above it, until it gets to the next non NA value aka the start of the next chapter. need to separate chapter, becuase need roman numerals to be recognized as a number
+  separate(col = chapter, into = c("ch", "no"), sep = " ") %>% #need to do this to separate chapter and roman numeral into two different columns
+  mutate(chapter = as.numeric(as.roman(no)))
+  
+```
+
+### create a new version, that has every word as its own column
+```{r}
+#each word is going to be its own line with unnest tokens
+hobbit_tokens <- hobbit_df %>%
+  unnest_tokens(word, text_full) %>% 
+  dplyr::select(-hobbit_text) #get rid of hobbit_text
+ 
+
+hobbit_wordcount <- hobbit_tokens %>% 
+  count(chapter, word) # tells you how many times each word came up in each chapter, has a lot of stop words like "a", "of", "then"
+```
+
+### remove all stop words that exist in hobbit tokens
+```{r}
+hobbit_nonstop_words <- hobbit_tokens %>% 
+  anti_join(stop_words) # get rids of anything that overlaps with stop_words
+
+non_stop_counts <- hobbit_nonstop_words %>% # counting thenumber of a times a word showed up per chapter, and removes the stop words
+  count(chapter, word)
+
+```
+
+### find the top 5 words per chapter
+```{r}
+top_5_words <- non_stop_counts %>% 
+  group_by(chapter) %>% # finding the top five words for each chapter
+  arrange(-n) %>% #arrange with high frequency words on top
+  slice(1:5) #slice to top 5
+
+ggplot(data = top_5_words, aes(x = word, y =n)) +geom_col(fill = "blue") +
+  facet_wrap(~chapter, scales = "free") +# use this scales when x = categorical variable, each individual plot can have its own axis
+  coord_flip()
+```
+
+```{r}
+ch1_top100 <- non_stop_counts %>% 
+  filter(chapter == 1) %>% 
+  arrange(-n) %>% 
+  slice(1:100)
+
+ch1_cloud <- ggplot(data = ch1_top100, aes(label = word)) +
+  geom_text_wordcloud(aes(color = n, size = n))+
+  scale_size_area(max_size = 6)
+
+ch1_cloud
+```
+
+
+## Sentiment analysis
+```{r}
+# use different libraries of words for different analysis
+affinn_pos <- get_sentiments("afinn") %>% 
+  filter(value > 2)
+#afinn ranks words from a scale of -5 (very negative) to +5 (very positive words)
+#nrc gets the sentiments based on how words can be categorized into bins
+```
+
+### using afinn
+```{r}
+#only want to keep the words in the hobbit that are in the afinn lexicon
+
+hobbit_afinn <- hobbit_nonstop_words %>% 
+  inner_join(get_sentiments("afinn")) # only keeps words in this DF that are in the afinn lexicon
+
+# now we want to find out how many times those values come up. the values from the sentiment by chapter
+
+afinn_counts <- hobbit_afinn %>% 
+count(chapter, value) # how many times does a -3 word show up in each chapter --> example
+
+#find mean values for chapters
+afinn_means <- hobbit_afinn %>% 
+  group_by(chapter) %>% 
+  summarize(mean_afinn = mean(value))
+
+ggplot(data = afinn_means,
+       aes( x = chapter, y = mean_afinn)) +
+  geom_col()+
+  coord_flip()
+```
+
+
+# using NRC Lexicon
+```{r}
+#first do the interjoin withe the lexicon you want to do
+
+
+hobbit_nrc <- hobbit_nonstop_words %>% 
+  inner_join(get_sentiments("nrc"))
+
+hobbit_nrc_counts <- hobbit_nrc %>% 
+  count(chapter, sentiment)
+
+ggplot(data = hobbit_nrc_counts,
+       aes(x = sentiment,
+           y = n))+
+  geom_col()+
+  facet_wrap(~chapter)+
+  coord_flip()
+
+```
+
+
+
+
+
+
+
